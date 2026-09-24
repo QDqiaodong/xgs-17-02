@@ -1,0 +1,139 @@
+# ==============================================
+# 园区公共饮水机管理系统 - Docker Compose 配置
+# 所有端口、镜像源、环境变量全部从 .env 文件统一管理
+# 所有宿主机端口全部绑定 127.0.0.1，禁止外网访问
+# ==============================================
+
+services:
+
+  # ---------- MySQL 8.0 ----------
+  mysql:
+    build:
+      context: .
+      dockerfile_inline: |
+        ARG DOCKER_REGISTRY=docker.m.daocloud.io/library/
+        FROM \${DOCKER_REGISTRY}mysql:8.0
+        ENV TZ=Asia/Shanghai
+    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-authentication-plugin=mysql_native_password"]
+    container_name: ${COMPOSE_PROJECT_NAME}-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - xgs-water-dispenser-mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - xgs-water-dispenser-net
+
+  # ---------- Redis 7 ----------
+  redis:
+    build:
+      context: .
+      dockerfile_inline: |
+        ARG DOCKER_REGISTRY=docker.m.daocloud.io/library/
+        FROM \${DOCKER_REGISTRY}redis:7-alpine
+        ENV TZ=Asia/Shanghai
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    container_name: ${COMPOSE_PROJECT_NAME}-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - xgs-water-dispenser-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - xgs-water-dispenser-net
+
+  # ---------- 后端 SpringBoot ----------
+  backend:
+    build:
+      context: ./backend
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY}
+    container_name: ${COMPOSE_PROJECT_NAME}-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BACKEND_PORT}:8088"
+    environment:
+      MYSQL_HOST: ${COMPOSE_PROJECT_NAME}-mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      TZ: ${TZ}
+      JVM_XMS: ${JVM_XMS}
+      JVM_XMX: ${JVM_XMX}
+      SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      - xgs-water-dispenser-uploads:/app/uploads
+      - ./data/transfer-logs:/data/transfer-logs:rw
+      - ./backend/logs:/app/logs:rw
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - xgs-water-dispenser-net
+
+  # ---------- 前端 Nginx ----------
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY}
+    container_name: ${COMPOSE_PROJECT_NAME}-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT}:80"
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - xgs-water-dispenser-uploads:/data/uploads:ro
+      - ./data/transfer-logs:/data/transfer-logs:ro
+    depends_on:
+      - backend
+    networks:
+      - xgs-water-dispenser-net
+
+# ---------- 数据卷 ----------
+volumes:
+  xgs-water-dispenser-mysql-data:
+    name: ${COMPOSE_PROJECT_NAME}-mysql-data
+  xgs-water-dispenser-redis-data:
+    name: ${COMPOSE_PROJECT_NAME}-redis-data
+  xgs-water-dispenser-uploads:
+    name: ${COMPOSE_PROJECT_NAME}-uploads
+  xgs-water-dispenser-transfer-logs:
+    name: ${COMPOSE_PROJECT_NAME}-transfer-logs
+    driver: local
+
+# ---------- 内部网络 ----------
+networks:
+  xgs-water-dispenser-net:
+    name: ${COMPOSE_PROJECT_NAME}-net
+    driver: bridge

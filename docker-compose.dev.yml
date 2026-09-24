@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: xgs_mysql_dev
+    restart: unless-stopped
+    ports:
+      - "3327:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: xgs2024
+      TZ: Asia/Shanghai
+    volumes:
+      - xgs_mysql_dev_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    networks:
+      - xgs_dev_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pxgs2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: xgs_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6400:6379"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - xgs_redis_dev_data:/data
+    command: redis-server --appendonly yes --requirepass ""
+    networks:
+      - xgs_dev_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: maven:3.9.6-eclipse-temurin-17
+    container_name: xgs_backend_dev
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "8111:8111"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: xgs2024
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      TZ: Asia/Shanghai
+      MAVEN_OPTS: "-Xmx1024m"
+    volumes:
+      - ./backend:/app
+      - xgs_maven_repo:/root/.m2/repository
+      - ./backend/settings.xml:/root/.m2/settings.xml
+      - ./data/transfer-logs:/data/transfer-logs
+    command: >
+      sh -c "
+        echo '等待MySQL和Redis启动...' &&
+        mvn spring-boot:run -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m -Duser.timezone=Asia/Shanghai'
+      "
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - xgs_dev_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: xgs_frontend_dev
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "8101:8101"
+    environment:
+      TZ: Asia/Shanghai
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_USE_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - xgs_npm_cache:/root/.npm
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - xgs_dev_network
+
+volumes:
+  xgs_mysql_dev_data:
+    name: xgs_mysql_dev_data
+  xgs_redis_dev_data:
+    name: xgs_redis_dev_data
+  xgs_maven_repo:
+    name: xgs_maven_repo
+  xgs_npm_cache:
+    name: xgs_npm_cache
+  xgs_transfer_logs:
+    name: xgs_transfer_logs
+
+networks:
+  xgs_dev_network:
+    name: xgs_dev_network
+    driver: bridge

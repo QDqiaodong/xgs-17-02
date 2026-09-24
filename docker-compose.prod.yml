@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: xgs_mysql_prod
+    restart: always
+    ports:
+      - "3327:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-xgs2024_prod}
+      TZ: Asia/Shanghai
+    volumes:
+      - xgs_mysql_prod_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --lower-case-table-names=1
+      - --max-connections=500
+      - --innodb-buffer-pool-size=512M
+    networks:
+      - xgs_prod_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-xgs2024_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  redis:
+    image: redis:7-alpine
+    container_name: xgs_redis_prod
+    restart: always
+    ports:
+      - "6400:6379"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - xgs_redis_prod_data:/data
+      - ./redis.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf --requirepass ${REDIS_PASSWORD:-xgs_redis_2024}
+    networks:
+      - xgs_prod_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-xgs_redis_2024}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: xgs/water-backend:latest
+    container_name: xgs_backend_prod
+    restart: always
+    ports:
+      - "8111:8111"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-xgs2024_prod}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-xgs_redis_2024}
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms512m -Xmx1024m"
+    volumes:
+      - xgs_uploads_prod:/app/uploads
+      - xgs_transfer_logs_prod:/data/transfer-logs
+      - ./backend/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - xgs_prod_network
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '1.5'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: xgs/water-frontend:latest
+    container_name: xgs_frontend_prod
+    restart: always
+    ports:
+      - "8101:80"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - xgs_uploads_prod:/data/uploads:ro
+      - xgs_transfer_logs_prod:/data/transfer-logs:ro
+    depends_on:
+      - backend
+    networks:
+      - xgs_prod_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+volumes:
+  xgs_mysql_prod_data:
+    name: xgs_mysql_prod_data
+  xgs_redis_prod_data:
+    name: xgs_redis_prod_data
+  xgs_uploads_prod:
+    name: xgs_uploads_prod
+  xgs_transfer_logs_prod:
+    name: xgs_transfer_logs_prod
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/transfer-logs
+      o: bind
+
+networks:
+  xgs_prod_network:
+    name: xgs_prod_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
