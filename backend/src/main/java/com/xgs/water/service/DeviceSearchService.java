@@ -5,6 +5,7 @@ import com.xgs.water.dto.DeviceSearchParams;
 import com.xgs.water.dto.DeviceSearchQuery;
 import com.xgs.water.exception.BusinessException;
 import com.xgs.water.exception.CursorExpiredException;
+import com.xgs.water.mapper.DeviceSearchMapper;
 import com.xgs.water.vo.DeviceFacetVO;
 import com.xgs.water.vo.DeviceSearchItem;
 import com.xgs.water.vo.DeviceSearchResult;

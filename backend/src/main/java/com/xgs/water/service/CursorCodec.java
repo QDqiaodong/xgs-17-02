@@ -2,6 +2,7 @@ package com.xgs.water.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xgs.water.dto.CursorToken;
+import com.xgs.water.exception.CursorExpiredException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

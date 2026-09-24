@@ -67,7 +67,7 @@
                     </when>
                     <!-- 升序 + 游标值为 NULL：NULL 在升序最前，之后只剩 id 更大的行 -->
                     <when test="p.asc and p.cursorSortNull">
-                        AND wd.id > #{p.cursorId}
+                        <![CDATA[AND wd.id > #{p.cursorId}]]>
                     </when>
                     <!--
                       降序 + 游标值非 NULL：先取 NULL（降序排最后），
@@ -82,7 +82,7 @@
                     </when>
                     <!-- 降序 + 游标值为 NULL：NULL 之后仍可能有 NULL 行，按 id 续取 -->
                     <otherwise>
-                        AND wd.id < #{p.cursorId}
+                        <![CDATA[AND wd.id < #{p.cursorId}]]>
                     </otherwise>
                 </choose>
             </if>

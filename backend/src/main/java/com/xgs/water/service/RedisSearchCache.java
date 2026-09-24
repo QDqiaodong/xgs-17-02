@@ -45,7 +45,7 @@ public class RedisSearchCache implements SearchCache {
         this.redisTemplate = redisTemplate;
         this.degradeWindowMs = degradeWindowMs;
         // 从 classpath 自动发现 JSR-310 时间模块，LocalDate/LocalDateTime 正确序列化
-        this.objectMapper = ObjectMapper.findAndRegisterModules();
+        this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
     @Override
