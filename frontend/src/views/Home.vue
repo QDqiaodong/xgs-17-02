@@ -8,6 +8,12 @@
       />
     </div>
     <div class="main-panel">
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px;">
+        <template #title>
+          需要跨楼层按编号/型号/规格/出水类型/状态组合快速查找设备？
+          <router-link to="/device" style="margin-left: 8px; font-weight: 600;">前往「全园设备快速检索」</router-link>
+        </template>
+      </el-alert>
       <div class="stat-row">
         <div class="stat-card">
           <div class="stat-label">园区总数</div>

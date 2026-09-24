@@ -8,6 +8,26 @@ export function getWaterDispenserPage(params) {
   })
 }
 
+/**
+ * 全园设备快速检索（游标键集分页）
+ * params: groupId/deviceNo/model/spec/waterType/status/pendingRetest/sort/order/pageSize/cursor
+ */
+export function searchDevices(params) {
+  return request({
+    url: '/water-dispenser/search',
+    method: 'get',
+    params
+  })
+}
+
+/** 筛选面板可选项：型号 / 安装规格 / 出水类型（区域树仍用 building-group/tree） */
+export function getDeviceFacets() {
+  return request({
+    url: '/water-dispenser/search/facets',
+    method: 'get'
+  })
+}
+
 export function getWaterDispenser(id) {
   return request({
     url: `/water-dispenser/${id}`,

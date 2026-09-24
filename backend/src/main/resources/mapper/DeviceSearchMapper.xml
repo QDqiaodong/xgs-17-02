@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xgs.water.mapper.DeviceSearchMapper">
+
+    <!--
+      全园设备快速检索
+      区域固定三级：楼层(type=3) -> 楼栋(type=2) -> 园区(type=1)
+      CONCAT_WS 自动跳过 NULL 段，设备只挂楼层时也能正确产出路径
+      注意：${p.sortExpr} 为白名单 SQL 片段（见 DeviceSearchService.SORT_EXPR），非用户输入；
+            其余全部使用 #{} 参数化。
+      ORDER BY、游标比较、返回值共用同一排序表达式（时间统一秒精度），
+      保证“看到的排序值”就是“下一页比较用的值”，不会因精度丢行。
+    -->
+    <select id="search" resultType="com.xgs.water.vo.DeviceSearchItem">
+        SELECT
+            wd.id,
+            wd.device_no      AS deviceNo,
+            wd.model,
+            wd.spec,
+            wd.water_type     AS waterType,
+            wd.group_id       AS groupId,
+            CONCAT_WS(' / ', park.name, building.name, floor.name) AS groupPath,
+            wd.status,
+            CASE wd.status WHEN 1 THEN '正常' WHEN 0 THEN '停用' ELSE '未知' END AS statusName,
+            wd.pending_retest AS pendingRetest,
+            wd.install_date   AS installDate,
+            ${p.sortExpr}     AS createTime
+        FROM water_dispenser wd
+        LEFT JOIN building_group floor    ON floor.id = wd.group_id
+        LEFT JOIN building_group building ON building.id = floor.parent_id
+        LEFT JOIN building_group park     ON park.id = building.parent_id
+        <where>
+            <if test="p.groupIds != null and p.groupIds.size() > 0">
+                wd.group_id IN
+                <foreach collection="p.groupIds" item="gid" open="(" separator="," close=")">
+                    #{gid}
+                </foreach>
+            </if>
+            <if test="p.deviceNo != null and p.deviceNo != ''">
+                AND wd.device_no LIKE CONCAT(#{p.deviceNo}, '%')
+            </if>
+            <if test="p.model != null and p.model != ''">
+                AND wd.model = #{p.model}
+            </if>
+            <if test="p.spec != null and p.spec != ''">
+                AND wd.spec = #{p.spec}
+            </if>
+            <if test="p.waterType != null and p.waterType != ''">
+                <!-- 出水类型以逗号分隔存储，用可移植的边界匹配代替 FIND_IN_SET（H2 测试库同样支持） -->
+                AND CONCAT(',', COALESCE(wd.water_type, ''), ',') LIKE CONCAT('%,', #{p.waterType}, ',%')
+            </if>
+            <if test="p.status != null">
+                AND wd.status = #{p.status}
+            </if>
+            <if test="p.pendingRetest != null">
+                AND wd.pending_retest = #{p.pendingRetest}
+            </if>
+            <if test="p.hasCursor">
+                <choose>
+                    <!-- 升序 + 游标值非 NULL：严格键集大于 -->
+                    <when test="p.asc and !p.cursorSortNull">
+                        <![CDATA[
+                        AND (${p.sortExpr} > #{p.cursorValue}
+                             OR (${p.sortExpr} = #{p.cursorValue} AND wd.id > #{p.cursorId}))
+                        ]]>
+                    </when>
+                    <!-- 升序 + 游标值为 NULL：NULL 在升序最前，之后只剩 id 更大的行 -->
+                    <when test="p.asc and p.cursorSortNull">
+                        AND wd.id > #{p.cursorId}
+                    </when>
+                    <!--
+                      降序 + 游标值非 NULL：先取 NULL（降序排最后），
+                      再取严格小于游标的非 NULL 行；id 决胜保证同值不重不漏
+                    -->
+                    <when test="!p.asc and !p.cursorSortNull">
+                        <![CDATA[
+                        AND (${p.sortExpr} IS NULL
+                             OR ${p.sortExpr} < #{p.cursorValue}
+                             OR (${p.sortExpr} = #{p.cursorValue} AND wd.id < #{p.cursorId}))
+                        ]]>
+                    </when>
+                    <!-- 降序 + 游标值为 NULL：NULL 之后仍可能有 NULL 行，按 id 续取 -->
+                    <otherwise>
+                        AND wd.id < #{p.cursorId}
+                    </otherwise>
+                </choose>
+            </if>
+        </where>
+        ORDER BY ${p.sortExpr}
+        <choose><when test="p.asc">ASC</when><otherwise>DESC</otherwise></choose>
+        , wd.id
+        <choose><when test="p.asc">ASC</when><otherwise>DESC</otherwise></choose>
+        LIMIT #{p.limit}
+    </select>
+
+    <select id="distinctModels" resultType="java.lang.String">
+        SELECT DISTINCT model FROM water_dispenser WHERE model IS NOT NULL AND model != '' ORDER BY model
+    </select>
+
+    <select id="distinctSpecs" resultType="java.lang.String">
+        SELECT DISTINCT spec FROM water_dispenser WHERE spec IS NOT NULL AND spec != '' ORDER BY spec
+    </select>
+</mapper>

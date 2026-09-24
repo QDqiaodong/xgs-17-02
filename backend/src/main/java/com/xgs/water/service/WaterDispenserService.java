@@ -33,11 +33,16 @@ public class WaterDispenserService {
         if (groupId != null) {
             groupIds = buildingGroupService.getAllChildGroupIds(groupId);
         }
-        IPage<WaterDispenserVO> result = waterDispenserMapper.selectPageList(page, groupId, groupIds, keyword, status);
-        for (WaterDispenserVO vo : result.getRecords()) {
-            vo.setGroupPath(buildingGroupService.getGroupPath(vo.getGroupId()));
+        PathCache.begin();
+        try {
+            IPage<WaterDispenserVO> result = waterDispenserMapper.selectPageList(page, groupId, groupIds, keyword, status);
+            for (WaterDispenserVO vo : result.getRecords()) {
+                vo.setGroupPath(buildingGroupService.getGroupPath(vo.getGroupId()));
+            }
+            return result;
+        } finally {
+            PathCache.end();
         }
-        return result;
     }
 
     public WaterDispenserVO getById(Long id) {

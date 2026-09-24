@@ -159,8 +159,19 @@ CREATE TABLE IF NOT EXISTS wq_idempotent_record (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抽检写操作幂等记录表';
 
 -- 设备档案增加“待复检”业务标记：与设备启用/停用状态正交，绝不覆盖停用状态
-ALTER TABLE water_dispenser
-    ADD COLUMN pending_retest TINYINT NOT NULL DEFAULT 0 COMMENT '待复检标记：1-待复检，0-正常；与status(启用/停用)正交';
+-- 幂等：列已存在（如已执行过新版 init.sql）则跳过
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'water_dispenser'
+      AND COLUMN_NAME = 'pending_retest'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE water_dispenser ADD COLUMN pending_retest TINYINT NOT NULL DEFAULT 0 COMMENT ''待复检标记：1-待复检，0-正常；与status(启用/停用)正交''',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 阈值默认数据（GB 直饮水常规参考值）
 INSERT INTO wq_threshold (metric_code, metric_name, unit, judge_type, min_value, max_value, pass_values, display_order)

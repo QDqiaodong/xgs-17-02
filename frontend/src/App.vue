@@ -11,7 +11,8 @@
         </div>
         <div class="header-actions">
           <el-radio-group v-model="activeMenu" size="small" @change="onMenuChange">
-            <el-radio-button label="/device">设备档案</el-radio-button>
+            <el-radio-button label="/device">全园检索</el-radio-button>
+            <el-radio-button label="/device/archive">档案维护</el-radio-button>
             <el-radio-button label="/inspection">水质抽检</el-radio-button>
             <el-radio-button label="/threshold">阈值管理</el-radio-button>
           </el-radio-group>
@@ -51,6 +52,7 @@ const user = ref(currentUser.value)
 const menuOf = (path) => {
   if (path.startsWith('/inspection')) return '/inspection'
   if (path.startsWith('/threshold')) return '/threshold'
+  if (path.startsWith('/device/archive')) return '/device/archive'
   return '/device'
 }
 const activeMenu = ref(menuOf(route.path))

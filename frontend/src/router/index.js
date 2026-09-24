@@ -8,8 +8,14 @@ const routes = [
   {
     path: '/device',
     name: 'Device',
+    component: () => import('@/views/DeviceSearchView.vue'),
+    meta: { title: '全园设备快速检索' }
+  },
+  {
+    path: '/device/archive',
+    name: 'DeviceArchive',
     component: () => import('@/views/Home.vue'),
-    meta: { title: '饮水机管理' }
+    meta: { title: '设备档案维护' }
   },
   {
     path: '/inspection',

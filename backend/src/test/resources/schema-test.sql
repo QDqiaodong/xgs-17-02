@@ -10,6 +10,14 @@ CREATE TABLE IF NOT EXISTS building_group (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS building_group_closure (
+    ancestor_id   BIGINT NOT NULL,
+    descendant_id BIGINT NOT NULL,
+    distance      INT    NOT NULL,
+    PRIMARY KEY (ancestor_id, descendant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_closure_desc ON building_group_closure (descendant_id, ancestor_id);
+
 CREATE TABLE IF NOT EXISTS water_dispenser (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     device_no VARCHAR(50) NOT NULL UNIQUE,
@@ -25,6 +33,10 @@ CREATE TABLE IF NOT EXISTS water_dispenser (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_wd_status_pending ON water_dispenser (status, pending_retest);
+CREATE INDEX IF NOT EXISTS idx_wd_model ON water_dispenser (model);
+CREATE INDEX IF NOT EXISTS idx_wd_install_date ON water_dispenser (install_date);
+CREATE INDEX IF NOT EXISTS idx_wd_create_id ON water_dispenser (create_time, id);
 
 CREATE TABLE IF NOT EXISTS group_transfer_log (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,

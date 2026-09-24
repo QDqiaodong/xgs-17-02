@@ -26,6 +26,12 @@ mybatis-plus:
     db-config:
       id-type: auto
 
+# 检索游标签名使用固定测试密钥（HMAC 可重放构造过期令牌）
+device:
+  search:
+    cursor-key: test-cursor-key
+    cursor-ttl-ms: 1800000
+
 logging:
   level:
     com.xgs.water: warn

@@ -14,6 +14,15 @@ CREATE TABLE IF NOT EXISTS building_group (
     INDEX idx_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='楼栋分组树形表';
 
+-- 区域树祖先-后代闭包表：distance=0 为自身；选园区/楼栋一次查询即可得到全部下级
+CREATE TABLE IF NOT EXISTS building_group_closure (
+    ancestor_id   BIGINT NOT NULL COMMENT '祖先区域ID',
+    descendant_id BIGINT NOT NULL COMMENT '后代区域ID（含祖先自身）',
+    distance      INT    NOT NULL COMMENT '层级距离：0=自身，1=直接子级，依次递增',
+    PRIMARY KEY (ancestor_id, descendant_id),
+    INDEX idx_descendant (descendant_id, ancestor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='区域树祖先-后代闭包表';
+
 CREATE TABLE IF NOT EXISTS water_dispenser (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     device_no VARCHAR(50) NOT NULL UNIQUE COMMENT '设备编号',
@@ -23,12 +32,17 @@ CREATE TABLE IF NOT EXISTS water_dispenser (
     image_url VARCHAR(500) COMMENT '设备图片URL',
     group_id BIGINT NOT NULL COMMENT '所属分组ID（楼层节点）',
     status TINYINT DEFAULT 1 COMMENT '状态：1-正常，0-停用',
+    pending_retest TINYINT NOT NULL DEFAULT 0 COMMENT '待复检标记：1-待复检，0-正常；与status正交，不覆盖停用状态',
     install_date DATE COMMENT '安装日期',
     remark VARCHAR(500) COMMENT '备注',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_group_id (group_id),
-    INDEX idx_device_no (device_no)
+    INDEX idx_device_no (device_no),
+    INDEX idx_status_pending (status, pending_retest),
+    INDEX idx_model (model),
+    INDEX idx_install_date (install_date),
+    INDEX idx_create_id (create_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='饮水机设备档案表';
 
 CREATE TABLE IF NOT EXISTS group_transfer_log (

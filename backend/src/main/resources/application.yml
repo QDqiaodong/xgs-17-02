@@ -41,6 +41,16 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+# 全园设备快速检索
+device:
+  search:
+    # 游标 HMAC 签名密钥：多实例部署必须共用同一密钥；生产请通过环境变量覆盖
+    cursor-key: ${DEVICE_CURSOR_KEY:xgs-device-search-cursor-key-2026}
+    # 翻页游标有效期（毫秒），默认 30 分钟；过期后前端保留筛选并从起点重查
+    cursor-ttl-ms: 1800000
+    # Redis 探测到故障后，多少毫秒内直接走数据库，避免连接超时拖慢检索
+    cache-degrade-ms: 5000
+
 logging:
   level:
     com.xgs.water: info

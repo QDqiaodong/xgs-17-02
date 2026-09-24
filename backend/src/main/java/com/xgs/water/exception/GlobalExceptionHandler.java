@@ -24,6 +24,19 @@ public class GlobalExceptionHandler {
         return result;
     }
 
+    /**
+     * 翻页游标过期（签名合法但超过 TTL）。
+     * 前端保留全部筛选条件，清空 cursor 并引导用户从第一页重新检索。
+     */
+    @ExceptionHandler(CursorExpiredException.class)
+    public Map<String, Object> handleCursorExpired(CursorExpiredException e) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 410);
+        result.put("message", e.getMessage());
+        result.put("data", Map.of("cursorExpired", true));
+        return result;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Map<String, Object> handleValid(MethodArgumentNotValidException e) {
         FieldError fieldError = e.getBindingResult().getFieldError();

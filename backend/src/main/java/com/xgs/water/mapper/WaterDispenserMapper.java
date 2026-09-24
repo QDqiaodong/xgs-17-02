@@ -36,4 +36,8 @@ public interface WaterDispenserMapper extends BaseMapper<WaterDispenser> {
 
     @Select("SELECT COUNT(*) FROM water_dispenser WHERE group_id = #{groupId} AND status = 1")
     Integer countByGroupId(@Param("groupId") Long groupId);
+
+    /** 全区域启用设备数一次 GROUP BY 取回，供区域树批量赋值，替代逐节点 count */
+    @Select("SELECT group_id, COUNT(*) FROM water_dispenser WHERE status = 1 GROUP BY group_id")
+    List<Object[]> countGroupedByGroup();
 }
