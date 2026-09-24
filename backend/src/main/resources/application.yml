@@ -28,6 +28,13 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB
 
+# 全园设备快速检索：游标 HMAC 密钥与有效期。
+# 生产请用 DEVICE_SEARCH_CURSOR_SECRET 注入固定密钥（否则重启后旧翻页标识失效，返回410引导重新检索）
+device:
+  search:
+    cursor-secret: ${DEVICE_SEARCH_CURSOR_SECRET:}
+    cursor-ttl-seconds: 1800
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.xgs.water.entity

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xgs.water.mapper.WaterDispenserMapper">
+
+    <!--
+      全园设备快速检索：
+      1. group_path：对区域树做一次递归 CTE，一次性算出每个区域节点的完整路径，
+         设备行通过等值 JOIN 取路径，不为每一行单独查树（杜绝 N+1）。
+      2. scope_ids：仅当指定区域节点时生成的递归子树 CTE，
+         选中园区/楼栋时天然包含其全部下级区域，且仍只产生一次树遍历。
+      3. 稳定排序：ORDER BY &lt;排序字段&gt; &lt;方向&gt;, wd.id &lt;方向&gt;，
+         id 为唯一主键，保证排序全序，相同主排序值不会产生页间抖动。
+      4. 键集分页：用上一页最后一行的(排序值, id)做游标条件，不使用 OFFSET，
+         连续向后翻页不会重复或跳过设备，深翻页成本恒定。
+    -->
+
+    <sql id="searchCte">
+        WITH RECURSIVE group_path (id, path) AS (
+            SELECT g.id, CAST(g.name AS CHAR(2000))
+            FROM building_group g
+            WHERE g.parent_id = 0 OR g.parent_id IS NULL
+            UNION ALL
+            SELECT g.id, CAST(CONCAT(gp.path, ' / ', g.name) AS CHAR(2000))
+            FROM building_group g
+            JOIN group_path gp ON g.parent_id = gp.id
+        )
+        <if test="q.groupId != null">
+            , scope_ids (id) AS (
+                SELECT g.id FROM building_group g WHERE g.id = #{q.groupId}
+                UNION ALL
+                SELECT g.id FROM building_group g JOIN scope_ids si ON g.parent_id = si.id
+            )
+        </if>
+    </sql>
+
+    <sql id="searchFrom">
+        FROM water_dispenser wd
+        JOIN group_path gp ON gp.id = wd.group_id
+        <if test="q.groupId != null">
+            JOIN scope_ids si ON si.id = wd.group_id
+        </if>
+    </sql>
+
+    <sql id="searchFilters">
+        <if test="q.deviceNo != null and q.deviceNo != ''">
+            AND wd.device_no LIKE CONCAT('%', #{q.deviceNo}, '%')
+        </if>
+        <if test="q.model != null and q.model != ''">
+            AND wd.model = #{q.model}
+        </if>
+        <if test="q.spec != null and q.spec != ''">
+            AND wd.spec = #{q.spec}
+        </if>
+        <if test="q.waterType != null and q.waterType != ''">
+            AND CONCAT(',', wd.water_type, ',') LIKE CONCAT('%,', #{q.waterType}, ',%')
+        </if>
+        <if test="q.status != null">
+            AND wd.status = #{q.status}
+        </if>
+        <if test="q.pendingRetest != null">
+            AND wd.pending_retest = #{q.pendingRetest}
+        </if>
+    </sql>
+
+    <!--
+      键集续页条件。游标内容在业务层校验签名后才会进入这里，
+      排序列名/方向来自服务端白名单，值全部以参数传入，不存在注入面。
+      MySQL 中 NULL 在升序时排在最前、降序时排在最后，谓词据此区分。
+    -->
+    <sql id="keysetPredicate">
+        <if test="q.cursorPresent">
+            <choose>
+                <when test="q.sortDir == 'ASC' and q.cursorValueNull">
+                    AND (wd.${q.sortColumn} IS NULL AND wd.id &gt; #{q.cursorId})
+                </when>
+                <when test="q.sortDir == 'ASC'">
+                    AND (
+                        wd.${q.sortColumn} IS NULL
+                        OR wd.${q.sortColumn} &gt; #{q.cursorValue}
+                        OR (wd.${q.sortColumn} = #{q.cursorValue} AND wd.id &gt; #{q.cursorId})
+                    )
+                </when>
+                <when test="q.sortDir == 'DESC' and q.cursorValueNull">
+                    AND (wd.${q.sortColumn} IS NULL AND wd.id &lt; #{q.cursorId})
+                </when>
+                <otherwise>
+                    AND (
+                        wd.${q.sortColumn} &lt; #{q.cursorValue}
+                        OR (wd.${q.sortColumn} = #{q.cursorValue} AND wd.id &lt; #{q.cursorId})
+                        OR wd.${q.sortColumn} IS NULL
+                    )
+                </otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="searchPage" resultType="com.xgs.water.vo.WaterDispenserVO">
+        <include refid="searchCte"/>
+        SELECT
+            wd.id, wd.device_no, wd.model, wd.spec, wd.water_type, wd.image_url,
+            wd.group_id, gp.path AS group_path, wd.status,
+            CASE wd.status WHEN 1 THEN '正常' WHEN 0 THEN '停用' ELSE '未知' END AS status_name,
+            wd.pending_retest, wd.install_date, wd.remark, wd.create_time, wd.update_time
+        <include refid="searchFrom"/>
+        <where>
+            <include refid="searchFilters"/>
+            <include refid="keysetPredicate"/>
+        </where>
+        ORDER BY wd.${q.sortColumn} ${q.sortDir}, wd.id ${q.sortDir}
+        LIMIT #{q.limit}
+    </select>
+
+    <select id="searchCount" resultType="long">
+        <include refid="searchCte"/>
+        SELECT COUNT(*)
+        <include refid="searchFrom"/>
+        <where>
+            <include refid="searchFilters"/>
+        </where>
+    </select>
+
+    <select id="distinctModel" resultType="java.lang.String">
+        SELECT DISTINCT model FROM water_dispenser
+        WHERE model IS NOT NULL AND model &lt;&gt; ''
+        ORDER BY model
+    </select>
+
+    <select id="distinctSpec" resultType="java.lang.String">
+        SELECT DISTINCT spec FROM water_dispenser
+        WHERE spec IS NOT NULL AND spec &lt;&gt; ''
+        ORDER BY spec
+    </select>
+</mapper>

@@ -19,6 +19,8 @@ public class BuildingGroupService {
     private BuildingGroupMapper buildingGroupMapper;
     @Autowired
     private WaterDispenserMapper waterDispenserMapper;
+    @Autowired
+    private SearchCacheClient searchCacheClient;
 
     public List<BuildingGroupTreeVO> getTree() {
         List<BuildingGroup> allGroups = buildingGroupMapper.selectList(
@@ -93,11 +95,13 @@ public class BuildingGroupService {
             group.setSortOrder(0);
         }
         buildingGroupMapper.insert(group);
+        searchCacheClient.bumpVersion();
     }
 
     @Transactional
     public void update(BuildingGroup group) {
         buildingGroupMapper.updateById(group);
+        searchCacheClient.bumpVersion();
     }
 
     @Transactional
@@ -117,6 +121,7 @@ public class BuildingGroupService {
             throw new RuntimeException("该分组下存在设备，无法删除");
         }
         buildingGroupMapper.deleteById(id);
+        searchCacheClient.bumpVersion();
     }
 
     public String getGroupPath(Long groupId) {

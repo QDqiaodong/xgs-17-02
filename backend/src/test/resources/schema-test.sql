@@ -26,6 +26,14 @@ CREATE TABLE IF NOT EXISTS water_dispenser (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 快速检索组合索引（与 mysql/init/zz_device_search.sql 对齐，用于验证十万级数据访问路径）
+CREATE INDEX IF NOT EXISTS idx_pending_retest_ctime ON water_dispenser (pending_retest, create_time, id);
+CREATE INDEX IF NOT EXISTS idx_status_ctime ON water_dispenser (status, create_time, id);
+CREATE INDEX IF NOT EXISTS idx_model_ctime ON water_dispenser (model, create_time, id);
+CREATE INDEX IF NOT EXISTS idx_spec_ctime ON water_dispenser (spec, create_time, id);
+CREATE INDEX IF NOT EXISTS idx_group_ctime ON water_dispenser (group_id, create_time, id);
+CREATE INDEX IF NOT EXISTS idx_install_date_id ON water_dispenser (install_date, id);
+
 CREATE TABLE IF NOT EXISTS group_transfer_log (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     device_id BIGINT NOT NULL,

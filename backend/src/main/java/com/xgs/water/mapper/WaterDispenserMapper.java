@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xgs.water.entity.WaterDispenser;
+import com.xgs.water.vo.DeviceSearchQuery;
 import com.xgs.water.vo.WaterDispenserVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -33,6 +34,19 @@ public interface WaterDispenserMapper extends BaseMapper<WaterDispenser> {
                                            @Param("groupIds") List<Long> groupIds,
                                            @Param("keyword") String keyword,
                                            @Param("status") Integer status);
+
+    /**
+     * 全园设备快速检索：区域递归子树 + 路径 JOIN + 稳定键集分页，SQL 见 mapper XML。
+     * 多取 1 行用于判定是否还有下一页，避免多发一次 COUNT 之外的探测查询。
+     */
+    List<WaterDispenserVO> searchPage(@Param("q") DeviceSearchQuery query);
+
+    long searchCount(@Param("q") DeviceSearchQuery query);
+
+    /** 筛选下拉候选：设备型号/安装规格去重，供“快速检索”面板使用 */
+    List<String> distinctModel();
+
+    List<String> distinctSpec();
 
     @Select("SELECT COUNT(*) FROM water_dispenser WHERE group_id = #{groupId} AND status = 1")
     Integer countByGroupId(@Param("groupId") Long groupId);

@@ -25,6 +25,13 @@ public class WaterDispenserService {
     private GroupTransferLogMapper transferLogMapper;
     @Autowired
     private BuildingGroupService buildingGroupService;
+    @Autowired
+    private SearchCacheClient searchCacheClient;
+
+    /** 设备档案写操作后推进检索缓存版本，使旧检索结果键自然失效（Redis 不可用时为空操作降级） */
+    private void invalidateSearchCache() {
+        searchCacheClient.bumpVersion();
+    }
 
     public IPage<WaterDispenserVO> page(Integer pageNum, Integer pageSize,
                                          Long groupId, String keyword, Integer status) {
@@ -72,6 +79,7 @@ public class WaterDispenserService {
         log.setNewGroupPath(buildingGroupService.getGroupPath(entity.getGroupId()));
         log.setTransferReason(dto.getTransferReason() != null ? dto.getTransferReason() : "初始建档");
         transferLogMapper.insert(log);
+        invalidateSearchCache();
     }
 
     @Transactional
@@ -110,11 +118,13 @@ public class WaterDispenserService {
             log.setTransferReason(dto.getTransferReason() != null ? dto.getTransferReason() : "分组调整");
             transferLogMapper.insert(log);
         }
+        invalidateSearchCache();
     }
 
     @Transactional
     public void delete(Long id) {
         waterDispenserMapper.deleteById(id);
+        invalidateSearchCache();
     }
 
     public IPage<GroupTransferLog> transferLogPage(Integer pageNum, Integer pageSize, Long deviceId) {

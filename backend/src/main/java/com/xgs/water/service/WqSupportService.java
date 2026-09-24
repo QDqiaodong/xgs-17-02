@@ -27,6 +27,8 @@ public class WqSupportService {
     private WqFailItemMapper failItemMapper;
     @Autowired
     private WaterDispenserMapper waterDispenserMapper;
+    @Autowired
+    private SearchCacheClient searchCacheClient;
 
     private static final Map<String, String> STATUS_NAME = Map.of(
             WqConstants.BATCH_DRAFT, "草稿",
@@ -106,6 +108,8 @@ public class WqSupportService {
             patch.setId(deviceId);
             patch.setPendingRetest(target);
             waterDispenserMapper.updateById(patch);
+            // 待复检标记是检索筛选条件之一，变更后推进检索缓存版本
+            searchCacheClient.bumpVersion();
         }
     }
 }
